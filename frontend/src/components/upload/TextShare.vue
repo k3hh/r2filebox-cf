@@ -1,0 +1,205 @@
+<template>
+  <form class="text-entry-form" @submit.prevent="handleShare">
+    <div class="text-input-area">
+      <label class="sr-only" for="text-entry-content">{{ t('a11y.textContent') }}</label>
+      <el-input
+        id="text-entry-content"
+        v-model="textContent"
+        type="textarea"
+        :rows="8"
+        :placeholder="t('text.placeholder')"
+        resize="none"
+        class="text-area"
+        :maxlength="maxTextBytes"
+      />
+      <p class="text-size-hint" :class="{ 'is-over': textTooLarge }" role="status" aria-live="polite">
+        {{ t('text.sizeHint', { used: formattedTextSize, max: formattedTextLimit }) }}
+      </p>
+    </div>
+
+    <ShareSettings
+      id-prefix="text-entry"
+      v-model:expire-value="form.expire_value"
+      v-model:expire-style="form.expire_style"
+      :max-expire-hours="maxExpireHours"
+      :expire-styles="configStore.config?.expireStyle"
+    />
+
+    <TurnstileWidget
+      v-if="requiresTurnstile"
+      ref="turnstileRef"
+      :site-key="turnstileSiteKey"
+      action="text-share"
+      @verify="turnstileToken = $event"
+    />
+
+    <el-button
+      type="primary"
+      size="large"
+      native-type="submit"
+      class="text-entry-submit"
+      :loading="sharing"
+      :aria-busy="sharing"
+      :disabled="!textContent.trim() || textTooLarge || (requiresTurnstile && !turnstileToken)"
+    >
+      <template #icon>
+        <el-icon v-if="!sharing" aria-hidden="true"><Promotion /></el-icon>
+      </template>
+      {{ sharing ? t('text.sharing') : t('text.start') }}
+    </el-button>
+    <p v-if="sharing" class="sr-only" role="status" aria-live="polite">{{ t('text.sharing') }}</p>
+  </form>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { shareApi, type ShareCreatedResult } from '@/api/share'
+import { ElMessage } from 'element-plus'
+import { Promotion } from '@element-plus/icons-vue'
+import { getLocaleTag, useI18n } from '@/i18n'
+import { useConfigStore } from '@/stores/config'
+import { formatFileSize } from '@/utils/format'
+import TurnstileWidget from '@/components/TurnstileWidget.vue'
+import ShareSettings from '@/components/upload/ShareSettings.vue'
+import { expireSelectionFromHours, type ExpireStyle } from '@/utils/expiration'
+
+const emit = defineEmits<{
+  success: [result: ShareCreatedResult]
+}>()
+
+const route = useRoute()
+const { locale, t } = useI18n()
+const configStore = useConfigStore()
+const DEFAULT_MAX_TEXT_BYTES = 1024 * 1024
+
+const textContent = ref('')
+
+// The Worker measures UTF-8 bytes, so a character cap can only ever be a coarse
+// guard: every character is at least one byte, which makes the byte limit a
+// maxlength that never truncates text the server would have accepted. The byte
+// counter below is what actually tells the user where the limit is.
+const maxTextBytes = computed(() => configStore.config?.maxTextBytes || DEFAULT_MAX_TEXT_BYTES)
+const textBytes = computed(() => new TextEncoder().encode(textContent.value).byteLength)
+const textTooLarge = computed(() => textBytes.value > maxTextBytes.value)
+const formattedTextSize = computed(() => formatFileSize(textBytes.value, getLocaleTag(locale.value)))
+const formattedTextLimit = computed(() => formatFileSize(maxTextBytes.value, getLocaleTag(locale.value)))
+
+onMounted(() => {
+  const search = new URLSearchParams(window.location.search)
+  const sharedValue = (key: 'title' | 'text' | 'url') => {
+    const routeValue = route.query[key]
+    return (typeof routeValue === 'string' ? routeValue : search.get(key) || '').trim()
+  }
+  const parts = [
+    sharedValue('title'),
+    sharedValue('text'),
+    sharedValue('url'),
+  ].filter(Boolean)
+  if (parts.length) {
+    textContent.value = parts.join('\n\n')
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`)
+  }
+})
+const sharing = ref(false)
+const turnstileToken = ref('')
+const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
+
+const requiresTurnstile = computed(() => configStore.config?.requireTurnstile === true)
+const turnstileSiteKey = computed(() => configStore.config?.turnstileSiteKey || '')
+const maxExpireHours = computed(() => configStore.config?.maxExpireHours ?? 168)
+
+const initialExpire = expireSelectionFromHours(configStore.config?.defaultExpireHours ?? 24)
+const form = ref<{ expire_value: number; expire_style: ExpireStyle }>({
+  expire_value: initialExpire.value,
+  expire_style: initialExpire.style,
+})
+
+const handleShare = async () => {
+  if (!textContent.value.trim()) {
+    ElMessage.warning(t('text.empty'))
+    return
+  }
+
+  await configStore.fetchConfig()
+  if (textTooLarge.value) {
+    ElMessage.error(t('text.tooLarge', { max: formattedTextLimit.value }))
+    return
+  }
+  if (requiresTurnstile.value && !turnstileToken.value) {
+    ElMessage.warning(t('turnstile.required'))
+    return
+  }
+
+  sharing.value = true
+
+  try {
+    const res = await shareApi.shareText({
+      text: textContent.value,
+      turnstileToken: turnstileToken.value || undefined,
+      ...form.value,
+    })
+
+    if (res.code === 200) {
+      ElMessage.success(t('text.done'))
+      
+      emit('success', {
+        code: res.data.code,
+        share_url: res.data.share_url,
+        full_share_url: res.data.full_share_url,
+        qr_code_data: res.data.qr_code_data,
+        expire_at: res.data.expire_at,
+        max_downloads: res.data.max_downloads,
+      })
+      
+      // 重置
+      textContent.value = ''
+    } else {
+      throw new Error(res.message || t('text.failed'))
+    }
+  } catch (error: unknown) {
+    ElMessage.error(error instanceof Error ? error.message : t('text.failed'))
+  } finally {
+    turnstileRef.value?.reset()
+    sharing.value = false
+  }
+}
+</script>
+
+<style scoped>
+.text-entry-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.text-area :deep(.el-textarea__inner) {
+  height: var(--share-content-height) !important;
+  min-height: var(--share-content-height) !important;
+  padding: var(--space-sm) !important;
+  border-radius: var(--radius-lg) !important;
+  background: var(--surface-page) !important;
+  font-family: var(--font-code) !important;
+  font-size: var(--fs-body-sm) !important;
+  line-height: var(--leading-body) !important;
+}
+
+.text-size-hint {
+  margin-top: var(--space-3xs);
+  color: var(--text-secondary);
+  font-family: var(--font-code);
+  font-size: var(--fs-caption-up);
+  text-align: right;
+}
+
+.text-size-hint.is-over {
+  color: var(--danger-ink);
+  font-weight: 600;
+}
+
+.text-entry-submit {
+  width: 100%;
+  min-height: 52px;
+  font-size: var(--fs-title-sm);
+}
+</style>

@@ -1,0 +1,486 @@
+@use 'fonts';
+@use 'tokens';
+@use 'element-plus';
+
+/*
+ * Base layer + the primitives the "bound ledger" pages are built from.
+ *
+ * The page floor is paper (--surface-canvas), not a card. Sections are
+ * separated by hairlines and whitespace on a 4px grid; cards and shadows are
+ * the exception, used only where content genuinely detaches from the page.
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+}
+
+html {
+  min-width: 320px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-primary);
+  font-size: var(--fs-body-md);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+  overflow-x: hidden;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+.el-button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ---- Type primitives --------------------------------------------------- */
+/* DESIGN.md keeps display weight light and tracking negative; Cormorant needs
+   500 to hold the same optical weight as Copernicus at these sizes. */
+.display-type {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: lining-nums tabular-nums;
+  font-synthesis: none;
+}
+
+.eyebrow {
+  color: var(--text-secondary);
+  font-size: var(--fs-caption-up);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caption-up);
+  line-height: var(--leading-title);
+  text-transform: uppercase;
+}
+
+.mono-type {
+  font-family: var(--font-code);
+  font-variant-ligatures: none;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ---- Ledger primitives ------------------------------------------------- */
+/* The paper sheet every page sits on. The coral spine is the left binding
+   edge; it is decorative, so it never carries meaning on its own.
+   Padding is kept strictly symmetric so the content sits dead-center on
+   both desktop and mobile screens. */
+.ledger {
+  position: relative;
+  width: min(calc(100% - var(--space-lg) * 2), 1040px);
+  margin: 0 auto;
+  padding-left: var(--space-lg);
+  padding-right: var(--space-lg);
+}
+
+.ledger::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    var(--primary-color) 0,
+    var(--primary-color) 64px,
+    var(--border-subtle) 64px,
+    var(--border-subtle) 100%
+  );
+}
+
+.sheet-rule {
+  height: 1px;
+  border: 0;
+  background: var(--border-subtle);
+}
+
+/* The ticket stub torn off the sheet. It carries extraction details and adapts
+   harmoniously to the active light/dark theme. */
+.stub {
+  position: relative;
+  background: var(--surface-page);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+}
+
+/* The notches have to be punched in whatever surface the stub is torn from,
+   so the host sets --stub-notch when that is not the page floor. */
+.stub--perforated {
+  --stub-notch: var(--surface-canvas);
+}
+
+.stub--perforated::before,
+.stub--perforated::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background-image: radial-gradient(circle at 6px 50%, var(--stub-notch) 3.5px, transparent 4px);
+  background-size: 12px 8px;
+  background-repeat: repeat-x;
+}
+
+.stub--perforated::before {
+  top: -4px;
+}
+
+.stub--perforated::after {
+  bottom: -4px;
+}
+
+/* ---- Accessibility ----------------------------------------------------- */
+.visually-hidden,
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.skip-link {
+  position: fixed;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  z-index: 10000;
+  padding: 10px var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--text-primary);
+  color: var(--surface-canvas);
+  font-weight: 600;
+  transform: translateY(calc(-100% - var(--space-md)));
+  transition: transform 0.18s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+#main-content:focus {
+  outline: none;
+}
+
+.el-button:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible,
+.el-scrollbar__wrap[tabindex='0']:focus-visible {
+  outline: 3px solid var(--primary-strong);
+  outline-offset: 3px;
+}
+
+/* ---- Admin shell ------------------------------------------------------- */
+.admin-layout {
+  .el-card,
+  .stat-item,
+  .chart-card {
+    background: var(--surface-card) !important;
+    border: 1px solid var(--border-subtle) !important;
+    box-shadow: none !important;
+    color: var(--text-primary) !important;
+  }
+
+  .header-title h2,
+  .file-name,
+  .user-cell span,
+  .anonymous,
+  .stat-value,
+  .stat-label,
+  .card-header h3 {
+    color: inherit !important;
+  }
+
+  .header-title p,
+  .el-pagination,
+  .el-pagination__total,
+  .el-pagination__jump {
+    color: var(--text-secondary) !important;
+  }
+
+  .download-count {
+    color: var(--primary-ink) !important;
+  }
+
+  .expire-time {
+    color: var(--text-regular) !important;
+
+    &.expired {
+      color: var(--danger-ink) !important;
+    }
+  }
+}
+
+/* ---- Scrollbars -------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: var(--space-2xs);
+  height: var(--space-2xs);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+
+  &:hover {
+    background: var(--scrollbar-thumb-hover);
+    background-clip: content-box;
+  }
+}
+
+/* ---- Responsive -------------------------------------------------------- */
+/* DESIGN.md defines three breakpoints. Everything in the app snaps to them. */
+@media (max-width: 767px) {
+  .ledger {
+    width: 100%;
+    padding-left: max(var(--space-sm), env(safe-area-inset-left));
+    padding-right: max(var(--space-sm), env(safe-area-inset-right));
+  }
+
+  .ledger::before {
+    display: none;
+  }
+
+  .el-dialog {
+    width: calc(100vw - var(--space-md)) !important;
+    margin: var(--space-xs) auto !important;
+  }
+
+  .el-dialog__body {
+    padding: var(--space-sm) !important;
+  }
+
+  .el-message {
+    width: calc(100vw - var(--space-md)) !important;
+    min-width: 0 !important;
+  }
+}
+
+/* A theme flip has to land in one paint. Only the page floor used to carry a
+   colour transition, so switching repainted every card, control and UA surface
+   (color-scheme is not animatable) instantly while the floor faded underneath
+   them for 200ms — and the controls that do transition their own colours lagged
+   by a further 180ms. Toggling a few times caught that desynchronised state and
+   read as the screen flashing. useTheme sets this attribute for the frame the
+   switch takes, so nothing animates across it. */
+/* In a cascade layer on purpose: for important declarations the layer order is
+   reversed, so a layered `!important` outranks every unlayered one whatever its
+   specificity. The app's own Element Plus overrides are unlayered `!important`
+   rules with three-class selectors, and a plain freeze rule loses to them. */
+@layer theme-switch {
+  [data-theme-switching],
+  [data-theme-switching] *,
+  [data-theme-switching] *::before,
+  [data-theme-switching] *::after {
+    transition: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .el-button:focus-visible,
+  button:focus-visible,
+  a:focus-visible,
+  [role='button']:focus-visible,
+  .el-scrollbar__wrap[tabindex='0']:focus-visible {
+    outline-color: Highlight;
+  }
+}
+
+/*
+ * Prevent touch browsers such as iOS Safari from auto-zooming focused form
+ * controls whose computed font size is below 16px.
+ *
+ * Keep this rule at the native control level so Element Plus defaults and
+ * future form components cannot reintroduce the issue.
+ */
+@media (any-pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: var(--fs-body-md) !important;
+  }
+}
+
+/* ---- Datetime display helper ------------------------------------------ */
+.datetime-cell {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.35;
+  font-family: var(--font-code);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+  vertical-align: middle;
+
+  .datetime-date {
+    font-size: var(--fs-caption);
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.02em;
+  }
+
+  .datetime-time {
+    font-size: var(--fs-caption-up);
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+  }
+}
+
+/* ---- Admin Subpage Header Card ---------------------------------------- */
+.subpage-header-card {
+  width: 100%;
+  margin-bottom: var(--space-md);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.subpage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: 48px;
+  padding: var(--space-xs) var(--space-md);
+
+  /* The three runs are set in different faces at different sizes: the
+     description in the body face, the meta in the code face at caption size.
+     Centring their boxes left them on three different baselines — measured
+     1.5-1.7px apart — which is what reads as the timestamp sitting off the
+     line. Align the runs on the baseline they share instead. */
+  .header-desc {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-xs);
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+
+    .desc-text {
+      margin: 0;
+      font-size: var(--fs-body-sm);
+      color: var(--text-regular);
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 1;
+    }
+
+    .desc-divider {
+      color: var(--border-strong);
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    /* A flex container borrows its baseline from its first item, and here that
+       is the clock icon, which has no text baseline of its own — so the whole
+       run was positioned off the icon's bottom edge. A block hands its own line
+       box's baseline up instead, which is the timestamp's. */
+    .desc-meta {
+      display: block;
+      font-size: var(--fs-caption-up);
+      color: var(--text-secondary);
+      font-family: var(--font-code);
+      font-variant-numeric: tabular-nums lining-nums;
+      white-space: nowrap;
+      flex-shrink: 0;
+
+      .el-icon {
+        margin-right: 5px;
+        font-size: var(--fs-caption);
+        color: var(--text-secondary);
+      }
+    }
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .subpage-header-card {
+    margin-bottom: var(--space-sm);
+  }
+
+  .subpage-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-xs);
+    min-height: 44px;
+    padding: var(--space-2xs) var(--space-sm);
+
+    .header-desc {
+      /* Ellipsising to one line cut the Japanese description in half. Two
+         clamped lines keep the header compact and the sentence readable. */
+      .desc-text {
+        display: -webkit-box;
+        overflow: hidden;
+        font-size: var(--fs-caption-up);
+        white-space: normal;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+      }
+
+      .desc-divider,
+      .desc-meta {
+        display: none;
+      }
+    }
+
+    .header-actions {
+      flex-shrink: 0;
+    }
+  }
+}
+

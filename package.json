@@ -1,0 +1,60 @@
+{
+  "name": "r2filebox-cf",
+  "version": "2.7.0",
+  "private": true,
+  "license": "LGPL-3.0-or-later",
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "icons:generate": "node scripts/generate-icons.mjs",
+    "screenshots": "node scripts/capture-screenshots.mjs",
+    "build": "npm --prefix frontend ci && npm --prefix frontend run build",
+    "deploy": "node scripts/deploy-worker.mjs",
+    "deploy:dry-run": "npm run build && node scripts/deploy-worker.mjs --dry-run",
+    "deploy:cf": "node scripts/deploy-cloudflare.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "cf-typegen": "wrangler types worker/worker-configuration.d.ts --env-file scripts/typegen.env.example --env-interface CloudflareBindings --include-runtime=false",
+    "cf-typegen:check": "npm run cf-typegen -- --check",
+    "typecheck": "tsc -p worker/tsconfig.json --noEmit",
+    "typecheck:test": "tsc -p worker/test/tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:scripts": "node --test scripts/*.test.mjs",
+    "verify:config": "node scripts/verify-config.mjs",
+    "verify:assets": "node scripts/verify-assets.mjs",
+    "verify:i18n": "node scripts/verify-i18n.mjs",
+    "verify:selectors": "node scripts/verify-selectors.mjs",
+    "verify": "npm run verify:config && npm run verify:assets && npm run verify:i18n && npm run verify:selectors && npm run cf-typegen:check && npm run typecheck && npm run typecheck:test && npm run test:scripts && npm test",
+    "hash-password": "node worker/scripts/hash-password.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.13.8"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20260922.1",
+    "@types/node": "^26.6.2",
+    "sharp": "0.35.4",
+    "typescript": "~5.9.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.136.2"
+  },
+  "cloudflare": {
+    "bindings": {
+      "ADMIN_USERNAME": {
+        "description": "Optional admin login name. Defaults to `admin`; Unicode names and email-style usernames are supported."
+      },
+      "ADMIN_PASSWORD": {
+        "description": "Required for Deploy to Cloudflare unless you later configure `ADMIN_PASSWORD_HASH`. Choose and save a 16-4096 character login password; the Deploy Button does not generate a recoverable password for you."
+      },
+      "CODE_HASH_PEPPER": {
+        "description": "Required stable random secret for extraction-code hashing. Generate once with `openssl rand -hex 32`. Do not rotate it: existing extraction codes would stop validating."
+      },
+      "SESSION_SECRET": {
+        "description": "Required stable random signing secret. Generate once with `openssl rand -hex 32`. Rotation invalidates admin sessions and short-lived download tokens."
+      }
+    }
+  }
+}
